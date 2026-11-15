@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>طاولة جانبية ثلاثية الأبعاد</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #ffffff; font-family: sans-serif; }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; cursor: grab; }
+  canvas:active { cursor: grabbing; }
+  #hint {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    font-size: 13px; color: #777; background: rgba(255,255,255,.85);
+    padding: 6px 14px; border-radius: 20px; border: 1px solid #eee; pointer-events: none;
+  }
+  #controls { position: fixed; bottom: 16px; right: 16px; display: flex; gap: 8px; }
+  #controls button {
+    padding: 8px 14px; border: 1px solid #e5e5e5; background: #fff; border-radius: 8px;
+    cursor: pointer; font-size: 13px; color: #222;
+  }
+  #controls button:hover { background: #f6f6f6; }
+  #badge { position: fixed; bottom: 16px; left: 16px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="hint">اسحب للتدوير • عجلة الماوس للتقريب</div>
+<div id="controls">
+  <button id="rotateBtn">إيقاف الدوران</button>
+  <button id="resetBtn">إعادة الضبط</button>
+</div>
+
+<div id="badge">
+<a href="https://threejsresources.com/showcase/faites-grandir-votre-entreprise-avec-le-dev-et-l-x27-ia-kaishift?ref=badge" target="_blank" style="display: inline-flex; align-items: center; gap: 10px; padding: 6px 12px; background-color: #ffffff; border: 1px solid #e5e5e5; border-radius: 8px; text-decoration: none; font-family: sans-serif; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: all 0.2s ease;">
+  <img src="https://threejsresources.com/logo.svg" alt="Three.js Resources Logo" style="width: 20px; height: 20px; object-fit: contain;" />
+  <div style="display: flex; flex-direction: column; line-height: 1.1;">
+    <span style="color: #000000; font-weight: 400; font-size: 10px;">Featured on</span>
+    <span style="color: #000000; font-weight: 600; font-size: 12px;">Three.js Resources</span>
+  </div>
+</a>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const container = document.getElementById('app');
+
+/* ---------- المشهد ---------- */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xffffff);
+
+const camera = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.1, 100);
+const START_POS = new THREE.Vector3(4.2, 2.6, 5.2);
+camera.position.copy(START_POS);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.85, 0);
+controls.enableDamping = true;
+controls.minDistance = 3;
+controls.maxDistance = 12;
+controls.maxPolarAngle = Math.PI / 2 - 0.02;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 1.5;
+controls.update();
+
+/* ---------- الإضاءة ---------- */
+scene.add(new THREE.HemisphereLight(0xffffff, 0xe8d8c8, 0.9));
+const key = new THREE.DirectionalLight(0xffffff, 2.2);
+key.position.set(4, 7, 5);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.left = -4; key.shadow.camera.right = 4;
+key.shadow.camera.top = 4;   key.shadow.camera.bottom = -4;
+key.shadow.bias = -0.0004;
+key.shadow.radius = 6;
+scene.add(key);
+const fill = new THREE.DirectionalLight(0xfff1e0, 0.6);
+fill.position.set(-5, 3, -3);
+scene.add(fill);
+
+/* ---------- أرضية تستقبل الظل فقط ---------- */
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(30, 30),
+  new THREE.ShadowMaterial({ opacity: 0.18 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+/* ---------- توليد خامة خشب ---------- */
+function woodTexture(base, dark, light, seed = 1, rings = 0) {
+  const s = 1024;
+  const c = document.createElement('canvas');
+  c.width = c.height = s;
+  const g = c.getContext('2d');
+  g.fillStyle = base;
+  g.fillRect(0, 0, s, s);
+
+  let r = seed * 9301;
+  const rnd = () => (r = (r * 9301 + 49297) % 233280) / 233280;
+
+  // أعراق طولية
+  for (let i = 0; i < 520; i++) {
+    const x = rnd() * s;
+    const w = 0.5 + rnd() * 3.5;
+    g.strokeStyle = rnd() > 0.5 ? dark : light;
+    g.globalAlpha = 0.05 + rnd() * 0.22;
+    g.lineWidth = w;
+    g.beginPath();
+    g.moveTo(x, 0);
+    let px = x;
+    for (let y = 0; y <= s; y += 32) {
+      px += (rnd() - 0.5) * 3.5 + Math.sin(y * 0.01 + i) * 0.6;
+      g.lineTo(px, y);
+    }
+    g.stroke();
+  }
+  // عروق كبيرة داكنة
+  for (let i = 0; i < 14; i++) {
+    const x = rnd() * s;
+    g.strokeStyle = dark;
+    g.globalAlpha = 0.12 + rnd() * 0.12;
+    g.lineWidth = 6 + rnd() * 16;
+    g.beginPath();
+    g.moveTo(x, 0);
+    g.bezierCurveTo(x + (rnd() - .5) * 90, s * .3, x + (rnd() - .5) * 90, s * .7, x + (rnd() - .5) * 60, s);
+    g.stroke();
+  }
+  g.globalAlpha = 1;
+
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return t;
+}
+
+function woodMaterial(opts) {
+  const tex = woodTexture(opts.base, opts.dark, opts.light, opts.seed);
+  tex.center.set(0.5, 0.5);
+  tex.rotation = opts.angle || 0;
+  tex.repeat.set(opts.repeat || 1, opts.repeat || 1);
+  return new THREE.MeshPhysicalMaterial({
+    map: tex,
+    roughness: 0.38,
+    metalness: 0,
+    clearcoat: 0.6,
+    clearcoatRoughness: 0.28,
+  });
+}
+
+/* ---------- الطاولة ---------- */
+const table = new THREE.Group();
+scene.add(table);
+
+// مقاسات
+const BASE_W = 1.8;   // عرض القاعدة
+const BASE_H = 1.4;   // ارتفاع القاعدة
+const BASE_D = 0.95;  // عمق القاعدة
+const TOP_R  = 1.0;   // نصف قطر السطح
+const LEAN   = 0.05;  // ميلان القاعدة
+
+// قص (ميلان) القاعدة
+function shear(geo) {
+  const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i);
+    p.setX(i, p.getX(i) + (BASE_H / 2 - y) * LEAN);
+  }
+  p.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function extrudeShape(shape) {
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: BASE_D, bevelEnabled: false });
+  geo.translate(0, 0, -BASE_D / 2);
+  // إحداثيات UV مناسبة للأعراق على كل الأوجه
+  const p = geo.attributes.position, n = geo.attributes.normal, uv = geo.attributes.uv;
+  for (let i = 0; i < p.count; i++) {
+    const nx = Math.abs(n.getX(i)), ny = Math.abs(n.getY(i)), nz = Math.abs(n.getZ(i));
+    let u, v;
+    if (nz >= nx && nz >= ny) { u = p.getX(i); v = p.getY(i); }
+    else if (nx >= ny)        { u = p.getZ(i); v = p.getY(i); }
+    else                      { u = p.getX(i); v = p.getZ(i); }
+    uv.setXY(i, u * 0.55, v * 0.55);
+  }
+  uv.needsUpdate = true;
+  return shear(geo);
+}
+
+const hw = BASE_W / 2, hh = BASE_H / 2;
+const splitX = -hw + BASE_W * 0.8;   // نقطة القطر العلوية
+
+// المثلث الأيسر العلوي (داكن)
+const leftShape = new THREE.Shape();
+leftShape.moveTo(-hw, hh);
+leftShape.lineTo(splitX, hh);
+leftShape.lineTo(-hw, -hh);
+leftShape.closePath();
+
+// الجزء الأيمن السفلي (فاتح)
+const rightShape = new THREE.Shape();
+rightShape.moveTo(splitX, hh);
+rightShape.lineTo(hw, hh);
+rightShape.lineTo(hw, -hh);
+rightShape.lineTo(-hw, -hh);
+rightShape.closePath();
+
+const diagAngle = Math.atan2(BASE_H, splitX + hw);
+
+const leftMat = woodMaterial({
+  base: '#6b3a1a', dark: '#2e1507', light: '#9a5f33', seed: 3,
+  angle: -(Math.PI / 2 - diagAngle) * 0.6
+});
+const rightMat = woodMaterial({
+  base: '#a8602b', dark: '#6a3514', light: '#d08a4c', seed: 7,
+  angle: -(Math.PI / 2 - diagAngle) - 0.15
+});
+
+const leftPart = new THREE.Mesh(extrudeShape(leftShape), leftMat);
+const rightPart = new THREE.Mesh(extrudeShape(rightShape), rightMat);
+[leftPart, rightPart].forEach(m => { m.castShadow = true; m.receiveShadow = true; });
+
+const base = new THREE.Group();
+base.add(leftPart, rightPart);
+
+// شريط الفاصل القطري (الحز اللامع)
+const diagLen = Math.hypot(splitX + hw, BASE_H);
+const strip = new THREE.Mesh(
+  new THREE.BoxGeometry(diagLen, 0.035, BASE_D + 0.004),
+  new THREE.MeshPhysicalMaterial({ color: 0xb87a45, roughness: 0.3, clearcoat: 0.8 })
+);
+strip.position.set((splitX - hw) / 2 + (BASE_H / 2 * 0) , 0, 0);
+strip.rotation.z = diagAngle;
+// ضبط موضع الشريط على منتصف القطر مع تطبيق الميلان
+const midX = (-hw + splitX) / 2;
+strip.position.set(midX + 0 * LEAN, 0, 0);
+strip.rotation.z = diagAngle;
+strip.position.x += 0; // منتصف القطر عند y = 0
+strip.position.x += (hh - 0) * LEAN;
+strip.castShadow = true;
+base.add(strip);
+
+base.position.y = hh;
+table.add(base);
+
+// سطح الطاولة الدائري بحواف مستديرة
+const topShape = new THREE.Shape();
+topShape.absarc(0, 0, TOP_R - 0.04, 0, Math.PI * 2, false);
+const topGeo = new THREE.ExtrudeGeometry(topShape, {
+  depth: 0.06,
+  bevelEnabled: true,
+  bevelThickness: 0.025,
+  bevelSize: 0.04,
+  bevelSegments: 6,
+  curveSegments: 96,
+});
+topGeo.rotateX(-Math.PI / 2);
+// UV مستوي لسطح الطاولة
+{
+  const p = topGeo.attributes.position, uv = topGeo.attributes.uv;
+  for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) * 0.5, p.getZ(i) * 0.5);
+  uv.needsUpdate = true;
+}
+const topMat = woodMaterial({
+  base: '#b97a40', dark: '#7a4519', light: '#dba067', seed: 11, angle: 0.05
+});
+const top = new THREE.Mesh(topGeo, topMat);
+top.position.y = BASE_H - 0.01;
+top.position.x = 0.02;
+top.castShadow = true;
+top.receiveShadow = true;
+table.add(top);
+
+/* ---------- أزرار التحكم ---------- */
+const rotateBtn = document.getElementById('rotateBtn');
+rotateBtn.addEventListener('click', () => {
+  controls.autoRotate = !controls.autoRotate;
+  rotateBtn.textContent = controls.autoRotate ? 'إيقاف الدوران' : 'تشغيل الدوران';
+});
+document.getElementById('resetBtn').addEventListener('click', () => {
+  camera.position.copy(START_POS);
+  controls.target.set(0, 0.85, 0);
+  controls.update();
+});
+
+/* ---------- تغيير الحجم والتشغيل ---------- */
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+renderer.setAnimationLoop(() => {
+  controls.update();
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>
